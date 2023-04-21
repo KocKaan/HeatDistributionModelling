@@ -1,15 +1,15 @@
-/* 
- * This file contains the code for doing the heat distribution problem. 
+/*
+ * This file contains the code for doing the heat distribution problem.
  * You do not need to modify anything except parallel_heat_dist() at the bottom
  * of this file.
- * In parallel_heat_dist() you can organize your data structure and the call other functions if you want, 
- * memory allocation, data movement, etc. 
+ * In parallel_heat_dist() you can organize your data structure and the call other functions if you want,
+ * memory allocation, data movement, etc.
  */
 
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h> 
+#include <time.h>
 #include <string.h>
 #include <omp.h>
 
@@ -35,30 +35,30 @@ int main(int argc, char * argv[])
   int which_code = 0; // CPU or GPU
   int iterations = 0;
   int i,j;
-  
+
   /* The 2D array of points will be treated as 1D array of NxN elements */
-  float * playground; 
-  
-  // to measure time taken by a specific part of the code 
+  float * playground;
+
+  // to measure time taken by a specific part of the code
   double time_taken;
-  clock_t start, end;
-  
+  double start, end;
+
   if(argc != 5)
   {
     fprintf(stderr, "usage: heatdist num  iterations  who\n");
     fprintf(stderr, "num = dimension of the square matrix \n");
     fprintf(stderr, "iterations = number of iterations till stopping (1 and up)\n");
     fprintf(stderr, "who = 0: sequential code on CPU, 1: OpenMP version\n");
-	fprintf(stderr, "threads = number of threads for the  OpenMP version\n");
+   	fprintf(stderr, "threads = number of threads for the  OpenMP version\n");
     exit(1);
   }
-  
+
   which_code = atoi(argv[3]);
   N = (unsigned int) atoi(argv[1]);
   iterations = (unsigned int) atoi(argv[2]);
   numthreads = (unsigned int) atoi(argv[4]);
- 
-  
+
+
   /* Dynamically allocate NxN array of floats */
   playground = (float *)calloc(N*N, sizeof(float));
   if( !playground )
@@ -66,7 +66,7 @@ int main(int argc, char * argv[])
    fprintf(stderr, " Cannot allocate the %u x %u array\n", N, N);
    exit(1);
   }
-  
+
   /* Initialize it: calloc already initalized everything to 0 */
   // Edge elements  initialization
   for(i = 0; i< N; i++) playground[index(i,0,N)] = 100;
@@ -77,46 +77,47 @@ int main(int argc, char * argv[])
   switch(which_code)
   {
 	case 0: printf("CPU sequential version:\n");
-			start = clock();
+			start = omp_get_wtime();
 			seq_heat_dist(playground, N, iterations);
-			end = clock();
+			end = omp_get_wtime();
 			break;
-		
+
 	case 1: printf("OpenMP version:\n");
-			start = clock();
-			parallel_heat_dist(playground, N, iterations); 
-			end = clock();  
-			check_result(iterations, N, playground); 
+			start = omp_get_wtime();
+			parallel_heat_dist(playground, N, iterations);
+			end = omp_get_wtime();
+			check_result(iterations, N, playground);
 			break;
-			
-			
+
+
 	default: printf("Invalid device type\n");
 			 exit(1);
   }
-  
-  time_taken = ((double)(end - start))/ CLOCKS_PER_SEC;
-  
+
+  //time_taken = ((double)(end - start))/ CLOCKS_PER_SEC;
+  time_taken = (double)(end - start);
+
   printf("Time taken = %lf\n", time_taken);
-  
+
   free(playground);
-  
+
   return 0;
 
 }
 
 
 /*****************  The CPU sequential version (DO NOT CHANGE THAT) **************/
-void  seq_heat_dist(float * playground, unsigned int N, unsigned int iterations)
+void seq_heat_dist(float * playground, unsigned int N, unsigned int iterations)
 {
   // Loop indices
   int i, j, k;
   int upper = N-1; //used instead of N to avoid updating the border points
-  
+
   // number of bytes to be copied between array temp and array playground
   unsigned int num_bytes = 0;
-  
-  float * temp; 
-  
+
+  float * temp;
+
   /* Dynamically allocate another array for temp values */
   temp = (float *)calloc(N*N, sizeof(float));
   if( !temp )
@@ -124,54 +125,54 @@ void  seq_heat_dist(float * playground, unsigned int N, unsigned int iterations)
    fprintf(stderr, " Cannot allocate temp %u x %u array\n", N, N);
    exit(1);
   }
-  
-  
+
+
   num_bytes = N*N*sizeof(float);
-  
+
   /* Copy initial array in temp */
   memcpy((void *)temp, (void *) playground, num_bytes);
-  
+
   for( k = 0; k < iterations; k++)
   {
     /* Calculate new values and store them in temp */
     for(i = 1; i < upper; i++)
       for(j = 1; j < upper; j++)
-		temp[index(i,j,N)] = (playground[index(i-1,j,N)] + 
-	                      playground[index(i+1,j,N)] + 
-			      playground[index(i,j-1,N)] + 
+		temp[index(i,j,N)] = (playground[index(i-1,j,N)] +
+	                      playground[index(i+1,j,N)] +
+			      playground[index(i,j-1,N)] +
 			      playground[index(i,j+1,N)])/4.0;
-  
-			      
-   			      
-    /* Move new values into old values */ 
+
+
+
+    /* Move new values into old values */
     memcpy((void *)playground, (void *) temp, num_bytes);
   }
-  
+
   free(temp);
 }
 
 /*************** Runs the sequential version and compares its output to the parallel version ***/
 void check_result(int iterations, unsigned int N, float * playground){
-	
+
   float * temp;
   int i, j;
-  
+
   temp = (float *)calloc(N*N, sizeof(float));
   if( !temp )
   {
    fprintf(stderr, " Cannot allocate temp %u x %u array in check_result\n", N, N);
    exit(1);
   }
-  
+
   /* Initialize it: calloc already initalized everything to 0 */
   // Edge elements  initialization
   for(i = 0; i< N; i++) temp[index(i,0,N)] = 100;
   for(i = 0; i< N; i++) temp[index(i,N-1,N)] = 100;
   for(j = 0; j< N; j++) temp[index(0,j,N)] = 100;
   for(j = 0; j< N; j++) temp[index(N-1,j,N)] = 100;
-  
+
   seq_heat_dist(temp, N, iterations);
-  
+
   for(i = 0; i < N; i++)
 		for (j = 0; j < N; j++)
 			if(fabsf(playground[index(i, j, N)] - temp[index(i, j, N)]) > 0.01)
@@ -181,12 +182,12 @@ void check_result(int iterations, unsigned int N, float * playground){
 				free(temp);
 				return;
 			}
-	
+
 	printf("Result is correct!\n");
 	free(temp);
-	
-	
-	
+
+
+
 }
 /**********************************************************************************************/
 
@@ -198,12 +199,56 @@ void check_result(int iterations, unsigned int N, float * playground){
   N: size of the 2D points is NxN
   iterations: number of iterations after which you stop.
 */
-void  parallel_heat_dist(float * playground, unsigned int N, unsigned int iterations)
+void parallel_heat_dist(float * playground, unsigned int N, unsigned int iterations)
 {
-  
-   
-  
+  // Loop indices
+  int i, j, k;
+  int upper = N-1; //used instead of N to avoid updating the border points
+
+  // number of bytes to be copied between array temp and array playground
+  unsigned int num_bytes = 0;
+
+  float * temp;
+
+  /* Dynamically allocate another array for temp values */
+  temp = (float *)calloc(N*N, sizeof(float));
+  if( !temp )
+  {
+   fprintf(stderr, " Cannot allocate temp %u x %u array\n", N, N);
+   exit(1);
+  }
+
+  num_bytes = N*N*sizeof(float);
+
+  /* Copy initial array in temp */
+  memcpy((void *)temp, (void *) playground, num_bytes);
+
+  omp_set_num_threads(numthreads);
+
+  #pragma omp parallel default(none) shared(iterations, playground, temp, N, num_bytes, upper) private(i, j, k)
+  for( k = 0; k < iterations; k++)
+  {
+    /* Calculate new values and store them in temp */
+    #pragma omp for
+    for(i = 1; i < upper; i++){
+      for(j = 1; j < upper; j++){
+        temp[index(i,j,N)] = (playground[index(i-1,j,N)] +
+                              playground[index(i+1,j,N)] +
+                              playground[index(i,j-1,N)] +
+                              playground[index(i,j+1,N)])/4.0;
+      }
+    }
+
+    /* Move new values into old values */
+    #pragma omp single
+    memcpy((void *)playground, (void *) temp, num_bytes);
+  }
+
+  free(temp);
 }
 
 
-
+/// private mre compare 1 thread and sequential -> less data shared
+// when compiling the code -O3
+// runtime schedules and hard code it to the code
+//
